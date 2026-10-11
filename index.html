@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Corne de l'Afrique : carte des acteurs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600&family=Newsreader:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root { --encre:#13293D; --papier:#F7FAFA; --filet:#C5D3D6; }
+  html, body { height:100%; margin:0; }
+  body { font-family:'Instrument Sans', system-ui, sans-serif; color:var(--encre); }
+  #map { position:absolute; inset:0; background:#DCE8EA; }
+  .panel { position:absolute; z-index:1000; top:max(10px, env(safe-area-inset-top)); left:10px; right:10px;
+           max-width:430px; background:var(--papier); border:1px solid var(--filet); border-radius:10px; padding:10px 12px; }
+  h1 { font:600 1.1rem/1.2 Newsreader, Georgia, serif; margin:0; }
+  .sub { margin:3px 0 9px; font-size:.78rem; color:#4A5F6E; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chips button { font:inherit; font-size:.8rem; min-height:34px; padding:6px 11px; border-radius:999px; cursor:pointer;
+                  border:1.5px solid var(--c); background:#fff; color:var(--encre); }
+  .chips button[aria-pressed="true"] { background:var(--c); color:#fff; }
+  .chips button:focus-visible { outline:3px solid #F5B700; outline-offset:2px; }
+  .leaflet-popup-content { font-family:inherit; font-size:.9rem; line-height:1.4; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <h1>Corne de l'Afrique : carte des acteurs</h1>
+  <p class="sub">Mise à jour le 12 octobre 2026. Touche un point pour voir le détail.</p>
+  <div class="chips" id="chips"></div>
+</div>
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  // Catégories : modifie les libellés ou les couleurs ici.
+  const CATS = {
+    etat:    { label: "États",                       color: "#1F4E79" },
+    contest: { label: "Contestés ou non étatiques",  color: "#B3261E" },
+    site:    { label: "Sites stratégiques",          color: "#0F766E" }
+  };
+
+  // Données : ajoute, modifie ou supprime des lignes. Format : [latitude, longitude].
+  const ACTEURS = [
+    { nom:"Djibouti", cat:"etat", pos:[11.5886,43.1456], note:"Porte maritime de l'Éthiopie, via le port et le chemin de fer vers Addis-Abeba. Accueille plusieurs bases étrangères (France, États-Unis, Chine, Japon, Italie)." },
+    { nom:"Éthiopie (Addis-Abeba)", cat:"etat", pos:[9.03,38.74], note:"Pays enclavé depuis l'indépendance de l'Érythrée en 1993. L'essentiel de son commerce passe par Djibouti ; l'accès à la mer reste un enjeu politique majeur." },
+    { nom:"Érythrée (Asmara)", cat:"etat", pos:[15.3229,38.9251], note:"Indépendante depuis 1993. Contrôle les ports de Massawa et d'Assab sur la mer Rouge." },
+    { nom:"Somalie (Mogadiscio)", cat:"etat", pos:[2.0469,45.3182], note:"Gouvernement fédéral. Soutenu par une mission de l'Union africaine et par la Turquie." },
+    { nom:"Soudan (Khartoum)", cat:"etat", pos:[15.5007,32.5599], note:"Guerre entre l'armée et les Forces de soutien rapide depuis avril 2023." },
+    { nom:"Égypte (Le Caire)", cat:"etat", pos:[30.0444,31.2357], note:"Dépend du canal de Suez, touché par la crise en mer Rouge. Désaccord avec l'Éthiopie sur le Nil Bleu." },
+    { nom:"Israël (Jérusalem)", cat:"etat", pos:[31.7683,35.2137], note:"Cible des attaques houthies. Intérêts sécuritaires en mer Rouge, notamment autour du port d'Eilat." },
+    { nom:"Turquie (Ankara)", cat:"etat", pos:[39.9334,32.8597], note:"Présente en Somalie : formation militaire, accords de défense et de coopération maritime signés en 2024." },
+
+    { nom:"Somaliland (Hargeisa)", cat:"contest", pos:[9.56,44.065], note:"Autoproclamé indépendant depuis 1991. Statut de reconnaissance internationale à tenir à jour." },
+    { nom:"Awdal (Borama)", cat:"contest", pos:[9.9358,43.1822], note:"Région à l'ouest du Somaliland, frontalière de Djibouti. À compléter avec ton suivi du conflit." },
+    { nom:"Houthis (Sanaa)", cat:"contest", pos:[15.3694,44.191], note:"Ansar Allah contrôle Sanaa et le nord-ouest du Yémen. Attaques contre la navigation en mer Rouge depuis 2023." },
+
+    { nom:"Bab-el-Mandeb", cat:"site", pos:[12.58,43.33], note:"Détroit d'environ 30 km entre Djibouti, l'Érythrée et le Yémen. Passage vers le canal de Suez." },
+    { nom:"Canal de Suez", cat:"site", pos:[30.5852,32.2654], note:"Voie maritime entre la mer Rouge et la Méditerranée." },
+    { nom:"Port de Berbera", cat:"site", pos:[10.4396,45.0143], note:"Principal port du Somaliland, concurrent potentiel de Djibouti pour le commerce éthiopien." },
+    { nom:"Port d'Assab", cat:"site", pos:[13.0074,42.7394], note:"Port érythréen. L'accès éthiopien à la mer fait débat dans la région." },
+    { nom:"Port de Hodeïda", cat:"site", pos:[14.798,42.953], note:"Principal port yéménite de la mer Rouge, sous contrôle houthi." },
+    { nom:"Grand barrage de la Renaissance", cat:"site", pos:[11.215,35.093], note:"Barrage éthiopien sur le Nil Bleu, point de tension avec l'Égypte et le Soudan." }
+  ];
+
+  const map = L.map('map', { zoomControl:false }).setView([13, 41], 5);
+  L.control.zoom({ position:'bottomright' }).addTo(map);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution:'© OpenStreetMap, © CARTO', subdomains:'abcd', maxZoom:18
+  }).addTo(map);
+
+  const groups = {};
+  Object.keys(CATS).forEach(k => groups[k] = L.layerGroup().addTo(map));
+
+  ACTEURS.forEach(a => {
+    L.circleMarker(a.pos, {
+      radius: a.cat === 'site' ? 7 : 10, color:'#fff', weight:2,
+      fillColor: CATS[a.cat].color, fillOpacity:.95
+    }).bindTooltip(a.nom).bindPopup('<strong>' + a.nom + '</strong><br>' + a.note).addTo(groups[a.cat]);
+  });
+
+  const chips = document.getElementById('chips');
+  Object.entries(CATS).forEach(([k, c]) => {
+    const b = document.createElement('button');
+    b.textContent = c.label;
+    b.style.setProperty('--c', c.color);
+    b.setAttribute('aria-pressed', 'true');
+    b.onclick = () => {
+      const on = b.getAttribute('aria-pressed') === 'true';
+      b.setAttribute('aria-pressed', String(!on));
+      on ? map.removeLayer(groups[k]) : map.addLayer(groups[k]);
+    };
+    chips.appendChild(b);
+  });
+</script>
+</body>
+</html>
